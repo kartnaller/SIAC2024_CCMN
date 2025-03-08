@@ -64,6 +64,12 @@
     </nav>
 
     <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12">
+                <button id="btnImportar" class="btn btn-success mb-4">Importar Dados das Planilhas</button>
+            </div>
+        </div>
+
         <div class="filter-section">
             <div class="row">
                 <div class="col-md-2">
@@ -122,38 +128,57 @@
         </div>
     </div>
 
-    <!-- Carrega os dados estáticos -->
-    <script src="dados_trabalhos.js"></script>
-    
     <script>
-        let todosTrabalhos = [];
-
         document.addEventListener('DOMContentLoaded', function() {
-            // Carrega os dados do arquivo JS
-            todosTrabalhos = dadosTrabalhos;
-            
-            // Ordenar trabalhos por código
-            todosTrabalhos.sort((a, b) => {
-                // Converter para número se possível, senão comparar como string
-                const codA = !isNaN(a.trabalho_id) ? Number(a.trabalho_id) : a.trabalho_id;
-                const codB = !isNaN(b.trabalho_id) ? Number(b.trabalho_id) : b.trabalho_id;
-                return codA > codB ? 1 : codA < codB ? -1 : 0;
-            });
-            
+            carregarTrabalhos();
+
+            document.getElementById('btnImportar').addEventListener('click', importarDados);
             document.getElementById('filterUnidade').addEventListener('change', aplicarFiltros);
             document.getElementById('filterTipo').addEventListener('change', aplicarFiltros);
             document.getElementById('filterTurno').addEventListener('change', aplicarFiltros);
             document.getElementById('filterMencao').addEventListener('change', aplicarFiltros);
             document.getElementById('searchText').addEventListener('input', aplicarFiltros);
-            
-            atualizarFiltros();
-            renderizarTrabalhos(todosTrabalhos);
         });
 
+        let todosTrabalhos = [];
+
+        async function carregarTrabalhos() {
+            try {
+                const response = await fetch('http://localhost:5000/api/trabalhos');
+                todosTrabalhos = await response.json();
+                // Ordenar trabalhos por código
+                todosTrabalhos.sort((a, b) => {
+                    // Converter para número se possível, senão comparar como string
+                    const codA = !isNaN(a.trabalho_id) ? Number(a.trabalho_id) : a.trabalho_id;
+                    const codB = !isNaN(b.trabalho_id) ? Number(b.trabalho_id) : b.trabalho_id;
+                    return codA > codB ? 1 : codA < codB ? -1 : 0;
+                });
+                atualizarFiltros();
+                renderizarTrabalhos(todosTrabalhos);
+            } catch (error) {
+                console.error('Erro ao carregar trabalhos:', error);
+                alert('Erro ao carregar os trabalhos.');
+            }
+        }
+
+        async function importarDados() {
+            try {
+                const response = await fetch('http://localhost:5000/api/importar', {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                alert(result.mensagem || 'Dados importados com sucesso!');
+                carregarTrabalhos();
+            } catch (error) {
+                console.error('Erro ao importar dados:', error);
+                alert('Erro ao importar os dados.');
+            }
+        }
+
         function atualizarFiltros() {
-            const unidades = [...new Set(todosTrabalhos.map(t => t.unidade))].sort();
-            const tipos = [...new Set(todosTrabalhos.map(t => t.tipo))].sort();
-            const turnos = [...new Set(todosTrabalhos.map(t => t.turno))].sort();
+            const unidades = [...new Set(todosTrabalhos.map(t => t.unidade))];
+            const tipos = [...new Set(todosTrabalhos.map(t => t.tipo))];
+            const turnos = [...new Set(todosTrabalhos.map(t => t.turno))];
 
             const filterUnidade = document.getElementById('filterUnidade');
             const filterTipo = document.getElementById('filterTipo');
