@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gerenciamento de Trabalhos - SIAC 2024</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .filter-section {
+            background-color: #f8f9fa;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .table th {
+            background-color: #0d6efd;
+            color: white;
+            white-space: nowrap;
+        }
+        .table-container {
+            width: 100%;
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        .table {
+            margin-bottom: 0;
+        }
+        /* Definindo larguras específicas para cada coluna */
+        .table th:nth-child(1), .table td:nth-child(1) { /* Código */
+            min-width: 100px;
+            max-width: 120px;
+        }
+        .table th:nth-child(2), .table td:nth-child(2) { /* Título */
+            min-width: 250px;
+        }
+        .table th:nth-child(3), .table td:nth-child(3) { /* Autores */
+            min-width: 200px;
+        }
+        .table th:nth-child(4), .table td:nth-child(4) { /* Orientadores */
+            min-width: 200px;
+        }
+        .table th:nth-child(5), .table td:nth-child(5) { /* Tipo */
+            min-width: 150px;
+        }
+        .table th:nth-child(6), .table td:nth-child(6) { /* Turno */
+            min-width: 100px;
+        }
+        .table th:nth-child(7), .table td:nth-child(7) { /* Unidade */
+            min-width: 100px;
+        }
+        /* Estilo para o conteúdo das células */
+        .table td {
+            white-space: normal;
+            word-wrap: break-word;
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-primary">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1">SIAC 2024 - Gerenciamento de Trabalhos</span>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <div class="col-12">
+                <button id="btnImportar" class="btn btn-success mb-4">Importar Dados das Planilhas</button>
+            </div>
+        </div>
+
+        <div class="filter-section">
+            <div class="row">
+                <div class="col-md-2">
+                    <label for="filterUnidade" class="form-label">Filtrar por Unidade:</label>
+                    <select id="filterUnidade" class="form-select">
+                        <option value="">Todas</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filterTipo" class="form-label">Filtrar por Tipo:</label>
+                    <select id="filterTipo" class="form-select">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label for="filterTurno" class="form-label">Filtrar por Turno:</label>
+                    <select id="filterTurno" class="form-select">
+                        <option value="">Todos</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="filterMencao" class="form-label">Menção Honrosa:</label>
+                    <select id="filterMencao" class="form-select">
+                        <option value="">Todos os trabalhos</option>
+                        <option value="true">Com Menção Honrosa</option>
+                        <option value="false">Sem Menção Honrosa</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label for="searchText" class="form-label">Buscar:</label>
+                    <input type="text" id="searchText" class="form-control" placeholder="Digite para buscar...">
+                </div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="m-0">Total de trabalhos: <span id="contador" class="badge bg-primary"></span></h5>
+            </div>
+            <table class="table table-striped table-bordered">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Título do trabalho</th>
+                        <th>Autor(es)</th>
+                        <th>Orientador(es)</th>
+                        <th>Tipo</th>
+                        <th>Turno</th>
+                        <th>Unidade</th>
+                        <th>Menção Honrosa</th>
+                    </tr>
+                </thead>
+                <tbody id="trabalhosTable">
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarTrabalhos();
+
+            document.getElementById('btnImportar').addEventListener('click', importarDados);
+            document.getElementById('filterUnidade').addEventListener('change', aplicarFiltros);
+            document.getElementById('filterTipo').addEventListener('change', aplicarFiltros);
+            document.getElementById('filterTurno').addEventListener('change', aplicarFiltros);
+            document.getElementById('filterMencao').addEventListener('change', aplicarFiltros);
+            document.getElementById('searchText').addEventListener('input', aplicarFiltros);
+        });
+
+        let todosTrabalhos = [];
+
+        async function carregarTrabalhos() {
+            try {
+                const response = await fetch('http://localhost:5000/api/trabalhos');
+                todosTrabalhos = await response.json();
+                // Ordenar trabalhos por código
+                todosTrabalhos.sort((a, b) => {
+                    // Converter para número se possível, senão comparar como string
+                    const codA = !isNaN(a.trabalho_id) ? Number(a.trabalho_id) : a.trabalho_id;
+                    const codB = !isNaN(b.trabalho_id) ? Number(b.trabalho_id) : b.trabalho_id;
+                    return codA > codB ? 1 : codA < codB ? -1 : 0;
+                });
+                atualizarFiltros();
+                renderizarTrabalhos(todosTrabalhos);
+            } catch (error) {
+                console.error('Erro ao carregar trabalhos:', error);
+                alert('Erro ao carregar os trabalhos.');
+            }
+        }
+
+        async function importarDados() {
+            try {
+                const response = await fetch('http://localhost:5000/api/importar', {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                alert(result.mensagem || 'Dados importados com sucesso!');
+                carregarTrabalhos();
+            } catch (error) {
+                console.error('Erro ao importar dados:', error);
+                alert('Erro ao importar os dados.');
+            }
+        }
+
+        function atualizarFiltros() {
+            const unidades = [...new Set(todosTrabalhos.map(t => t.unidade))];
+            const tipos = [...new Set(todosTrabalhos.map(t => t.tipo))];
+            const turnos = [...new Set(todosTrabalhos.map(t => t.turno))];
+
+            const filterUnidade = document.getElementById('filterUnidade');
+            const filterTipo = document.getElementById('filterTipo');
+            const filterTurno = document.getElementById('filterTurno');
+
+            filterUnidade.innerHTML = '<option value="">Todas</option>' +
+                unidades.map(u => `<option value="${u}">${u}</option>`).join('');
+            
+            filterTipo.innerHTML = '<option value="">Todos</option>' +
+                tipos.map(t => `<option value="${t}">${t}</option>`).join('');
+
+            filterTurno.innerHTML = '<option value="">Todos</option>' +
+                turnos.map(t => `<option value="${t}">${t}</option>`).join('');
+        }
+
+        function aplicarFiltros() {
+            const unidade = document.getElementById('filterUnidade').value;
+            const tipo = document.getElementById('filterTipo').value;
+            const turno = document.getElementById('filterTurno').value;
+            const mencao = document.getElementById('filterMencao').value;
+            const busca = document.getElementById('searchText').value.toLowerCase();
+
+            const trabalhosFiltrados = todosTrabalhos.filter(trabalho => {
+                const matchUnidade = !unidade || trabalho.unidade === unidade;
+                const matchTipo = !tipo || trabalho.tipo === tipo;
+                const matchTurno = !turno || trabalho.turno === turno;
+                const matchMencao = !mencao || trabalho.mencao_honrosa === (mencao === 'true');
+                const matchBusca = !busca || 
+                    trabalho.titulo.toLowerCase().includes(busca) ||
+                    trabalho.autores.toLowerCase().includes(busca) ||
+                    trabalho.orientadores.toLowerCase().includes(busca) ||
+                    trabalho.trabalho_id.toLowerCase().includes(busca);
+
+                return matchUnidade && matchTipo && matchTurno && matchMencao && matchBusca;
+            });
+
+            renderizarTrabalhos(trabalhosFiltrados);
+        }
+
+        function renderizarTrabalhos(trabalhos) {
+            const tbody = document.getElementById('trabalhosTable');
+            const contador = document.getElementById('contador');
+            
+            // Atualiza o contador
+            contador.textContent = trabalhos.length;
+            
+            tbody.innerHTML = trabalhos.map(t => `
+                <tr>
+                    <td>${t.trabalho_id}</td>
+                    <td>${t.titulo}</td>
+                    <td>${t.autores}</td>
+                    <td>${t.orientadores}</td>
+                    <td>${t.tipo}</td>
+                    <td>${t.turno}</td>
+                    <td>${t.unidade}</td>
+                    <td class="text-center">${t.mencao_honrosa ? '<span class="badge bg-success">✓</span>' : ''}</td>
+                </tr>
+            `).join('');
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html> 
